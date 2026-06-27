@@ -1,6 +1,6 @@
 """
 Piper TTS Document Reader
-Reads .docx files aloud with full playback controls.
+Reads .docx, .md, and .txt files aloud with full playback controls.
 """
 import os
 import re
@@ -79,6 +79,55 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
+def clean_markdown(md: str) -> str:
+    """Strip Markdown syntax so the text reads naturally aloud."""
+    # Fenced code blocks (``` and ~~~) — drop entirely
+    md = re.sub(r"```.*?```", "", md, flags=re.DOTALL)
+    md = re.sub(r"~~~.*?~~~", "", md, flags=re.DOTALL)
+    # HTML comments and tags (badges, <br>, <div>, etc.)
+    md = re.sub(r"<!--.*?-->", "", md, flags=re.DOTALL)
+    md = re.sub(r"<[^>]+>", "", md)
+    # Images / badges: ![alt](url) and ![alt][ref] -> drop
+    md = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", md)
+    md = re.sub(r"!\[[^\]]*\]\[[^\]]*\]", "", md)
+    # Links: [text](url) -> text, [text][ref] -> text
+    md = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", md)
+    md = re.sub(r"\[([^\]]+)\]\[[^\]]*\]", r"\1", md)
+    # Link/badge reference definitions:  [ref]: https://...
+    md = re.sub(r"^\s*\[[^\]]+\]:\s*\S+.*$", "", md, flags=re.MULTILINE)
+    # Inline code `code` -> code
+    md = re.sub(r"`+([^`]+)`+", r"\1", md)
+    # ATX headings: "## Title" -> "Title"
+    md = re.sub(r"^\s{0,3}#{1,6}\s*", "", md, flags=re.MULTILINE)
+    # Setext heading underlines and horizontal rules
+    md = re.sub(r"^\s*[=\-_*]{3,}\s*$", "", md, flags=re.MULTILINE)
+    # Blockquote markers
+    md = re.sub(r"^\s*>+\s?", "", md, flags=re.MULTILINE)
+    # Bullet and numbered list markers
+    md = re.sub(r"^\s*[-*+]\s+", "", md, flags=re.MULTILINE)
+    md = re.sub(r"^\s*\d+\.\s+", "", md, flags=re.MULTILINE)
+    # Table separator rows (|---|:--:|) -> drop
+    md = re.sub(r"^\s*\|?[\s:\-|]{3,}\|?\s*$", "", md, flags=re.MULTILINE)
+    # Remaining table pipes -> spaces
+    md = re.sub(r"\s*\|\s*", " ", md)
+    # Strikethrough ~~text~~ -> text
+    md = re.sub(r"~~(.+?)~~", r"\1", md)
+    # clean_text handles **bold**/*italic*, stray symbols, etc.
+    return clean_text(md)
+
+
+def extract_markdown_text(path: str) -> str:
+    """Read a Markdown file and strip syntax for TTS."""
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return clean_markdown(f.read())
+
+
+def extract_txt_text(path: str) -> str:
+    """Read a plain-text file and clean it for TTS."""
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return clean_text(f.read())
+
+
 def extract_docx_text(path: str) -> str:
     """Extract and clean text from a .docx file."""
     doc = Document(path)
@@ -89,6 +138,17 @@ def extract_docx_text(path: str) -> str:
             paragraphs.append(t)
     raw = "\n\n".join(paragraphs)
     return clean_text(raw)
+
+
+def extract_text(path: str) -> str:
+    """Dispatch to the right extractor based on file extension."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".docx":
+        return extract_docx_text(path)
+    if ext in (".md", ".markdown"):
+        return extract_markdown_text(path)
+    # Everything else is treated as plain text (.txt, .text, unknown)
+    return extract_txt_text(path)
 
 
 def get_wav_duration(path: str) -> float:
@@ -212,7 +272,13 @@ class PiperReaderApp:
 
     def _browse(self):
         path = filedialog.askopenfilename(
-            filetypes=[("Word Documents", "*.docx"), ("All files", "*.*")]
+            filetypes=[
+                ("Supported Documents", "*.docx *.md *.markdown *.txt *.text"),
+                ("Word Documents", "*.docx"),
+                ("Markdown", "*.md *.markdown"),
+                ("Text", "*.txt *.text"),
+                ("All files", "*.*"),
+            ]
         )
         if path:
             self.file_var.set(path)
@@ -224,7 +290,7 @@ class PiperReaderApp:
             messagebox.showerror("Error", "File not found.")
             return
         try:
-            text = extract_docx_text(path)
+            text = extract_text(path)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to read document:\n{e}")
             return

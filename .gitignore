@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# Generated / test audio
+*.wav
+
+# Voice models (download separately)
+*.onnx
+*.onnx.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Scratch
+_*.md
+HANDOFF.md
