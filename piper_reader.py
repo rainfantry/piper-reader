@@ -17,8 +17,40 @@ import pygame
 from docx import Document
 from piper import PiperVoice, SynthesisConfig
 
-# Default voice model path
-DEFAULT_MODEL = os.path.join(os.path.expanduser("~"), "en_US-lessac-medium.onnx")
+# Voice model filename (config is this + ".json")
+MODEL_NAME = "en_US-lessac-medium.onnx"
+
+
+def resolve_model() -> str:
+    """Locate the voice model.
+
+    Search order: the PyInstaller bundle (model shipped inside the .exe),
+    the directory next to the executable/script, then the user's home dir.
+    Returns the first path whose .onnx AND .onnx.json both exist; if none
+    match, returns the home-dir path so the load error is clear.
+    """
+    candidates = []
+    # PyInstaller onefile unpacks --add-data files into sys._MEIPASS
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(os.path.join(meipass, MODEL_NAME))
+    # Next to the frozen exe (or the script when run from source)
+    if getattr(sys, "frozen", False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    candidates.append(os.path.join(base, MODEL_NAME))
+    # User home dir (user-supplied / legacy location)
+    home_path = os.path.join(os.path.expanduser("~"), MODEL_NAME)
+    candidates.append(home_path)
+
+    for path in candidates:
+        if os.path.exists(path) and os.path.exists(path + ".json"):
+            return path
+    return home_path
+
+
+DEFAULT_MODEL = resolve_model()
 
 # Speed presets: label -> length_scale (higher = slower)
 SPEED_PRESETS = {
@@ -323,6 +355,13 @@ class PiperReaderApp:
     def _generate_worker(self, text: str):
         try:
             if self.voice is None:
+                if not (os.path.exists(DEFAULT_MODEL) and os.path.exists(DEFAULT_MODEL + ".json")):
+                    raise FileNotFoundError(
+                        f"Voice model not found.\n\nExpected '{MODEL_NAME}' (and "
+                        f"'{MODEL_NAME}.json') bundled with the app, next to the "
+                        f"executable, or in your home folder:\n{os.path.expanduser('~')}\n\n"
+                        "See the README for where to download a Piper voice."
+                    )
                 self.root.after(0, lambda: self.status_label.configure(text="Loading voice model..."))
                 self.voice = PiperVoice.load(DEFAULT_MODEL)
 

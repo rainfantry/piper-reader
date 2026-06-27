@@ -21,9 +21,7 @@ Load a Word document, Markdown file, or plain-text file, generate natural-soundi
 
 ### Option 1 — Download the executable
 
-Grab the latest `PiperReader.exe` from the [Releases](https://github.com/rainfantry/piper-reader/releases) page. No Python install needed.
-
-You still need a Piper voice model (see [Voice model](#voice-model) below).
+Grab the latest `PiperReader.exe` from the [Releases](https://github.com/rainfantry/piper-reader/releases) page. **The voice model is bundled inside the `.exe`** — no Python install, no separate download, fully offline out of the box. Just run it.
 
 ### Option 2 — Run from source
 
@@ -36,14 +34,15 @@ python piper_reader.py
 
 ## Voice model
 
-The app expects a Piper voice model in your home folder by default:
+The released `PiperReader.exe` ships with the `en_US-lessac-medium` voice baked in — nothing to download.
 
-```
-~/en_US-lessac-medium.onnx
-~/en_US-lessac-medium.onnx.json
-```
+When running **from source**, the app looks for the model in this order:
 
-Download voices from the [Piper voices collection](https://huggingface.co/rhasspy/piper-voices). Place both the `.onnx` and `.onnx.json` files side by side. To use a different model, edit the `DEFAULT_MODEL` path near the top of `piper_reader.py`.
+1. Bundled inside the executable (release builds only)
+2. Next to the executable / `piper_reader.py`
+3. Your home folder: `~/en_US-lessac-medium.onnx` (+ `.onnx.json`)
+
+Download voices from the [Piper voices collection](https://huggingface.co/rhasspy/piper-voices) and place both the `.onnx` and `.onnx.json` files in one of those locations. To use a different voice, change `MODEL_NAME` near the top of `piper_reader.py`.
 
 ## Usage
 
@@ -69,12 +68,19 @@ python piper_reader.py "C:\path\to\document.md"
 
 ## Building the executable
 
-The release binary is built with [PyInstaller](https://pyinstaller.org/):
+The release binary is built with [PyInstaller](https://pyinstaller.org/). To produce a self-contained build with the voice model baked in:
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --name PiperReader piper_reader.py
+pyinstaller --onefile --windowed --name PiperReader \
+  --collect-all piper --collect-all onnxruntime \
+  --add-data "en_US-lessac-medium.onnx;." \
+  --add-data "en_US-lessac-medium.onnx.json;." \
+  piper_reader.py
 ```
+
+- `--collect-all piper` is **required** — Piper bundles `espeakbridge.pyd` and the `espeak-ng-data/` dictionaries; without them synthesis fails at runtime.
+- The two `--add-data` flags embed the voice model so the `.exe` runs with no external files. Drop them for a smaller binary that loads the model from disk instead.
 
 The result lands in `dist/PiperReader.exe`.
 
