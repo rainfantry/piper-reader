@@ -6,6 +6,10 @@ Load a Word document, Markdown file, or plain-text file, generate natural-soundi
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey) ![License](https://img.shields.io/badge/license-MIT-green)
 
+![Piper Document Reader — Markdown loaded and stripped to clean prose in the preview pane](docs/screenshot.png)
+
+*Markdown is cleaned automatically — headings, tables, and symbols become natural prose ready to speak.*
+
 ---
 
 ## Features
